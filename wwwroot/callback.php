@@ -1,25 +1,31 @@
-<?php // callback.php
-define("LINE_MESSAGING_API_CHANNEL_SECRET", '46afb0ed09143f10ae194e7518658a3f');
-define("LINE_MESSAGING_API_CHANNEL_TOKEN", 'sGBhsJYSplyvorJ3rePgiB/EFumwMJeiNIC8Rn6+CxacsRESoUOwNPPfctkBOs9rit0v69cXI0Ev5q/CmLfMzgZfJbVzL69eOf6p5prDe2blB4irpKbTlLKhjLX3082z37NpWsv9vhFVFvW3IXr32QdB04t89/1O/w1cDnyilFU=');
+<?php
 
-require __DIR__."/../vendor/autoload.php";
+require_once __DIR__ . '/vendor/autoload.php';
 
-$bot = new \LINE\LINEBot(
-    new \LINE\LINEBot\HTTPClient\CurlHTTPClient(LINE_MESSAGING_API_CHANNEL_TOKEN),
-    ['channelSecret' => LINE_MESSAGING_API_CHANNEL_SECRET]
-);
+$httpClient = new \LINE\LINEBot\HTTPClient\CurlHTTPClient(getenv('CHANNEL_ACCESS_TOKEN'));
+$bot = new \LINE\LINEBot($httpClient, ['channelSecret' => getenv('CHANNEL_SECRET')]);
 
-$signature = $_SERVER["HTTP_".\LINE\LINEBot\Constant\HTTPHeader::LINE_SIGNATURE];
-$body = file_get_contents("php://input");
-
-$events = $bot->parseEventRequest($body, $signature);
-
-foreach ($events as $event) {
-    if ($event instanceof \LINE\LINEBot\Event\MessageEvent\TextMessage) {
-        $reply_token = $event->getReplyToken();
-        $text = $event->getText();
-        $bot->replyText($reply_token, $text);
-    }
+$signature = $_SERVER["HTTP_" . \LINE\LINEBot\Constant\HTTPHeader::LINE_SIGNATURE];
+try {
+  $events = $bot->parseEventRequest(file_get_contents('php://input'), $signature);
+} catch(\LINE\LINEBot\Exception\InvalidSignatureException $e) {
+  error_log("parseEventRequest failed. InvalidSignatureException => ".var_export($e, true));
+} catch(\LINE\LINEBot\Exception\UnknownEventTypeException $e) {
+  error_log("parseEventRequest failed. UnknownEventTypeException => ".var_export($e, true));
+} catch(\LINE\LINEBot\Exception\UnknownMessageTypeException $e) {
+  error_log("parseEventRequest failed. UnknownMessageTypeException => ".var_export($e, true));
+} catch(\LINE\LINEBot\Exception\InvalidEventRequestException $e) {
+  error_log("parseEventRequest failed. InvalidEventRequestException => ".var_export($e, true));
 }
-
-echo "OK";
+foreach ($events as $event) {
+  if (!($event instanceof \LINE\LINEBot\Event\MessageEvent)) {
+    error_log('Non message event has come');
+    continue;
+  }
+  if (!($event instanceof \LINE\LINEBot\Event\MessageEvent\TextMessage)) {
+    error_log('Non text message has come');
+    continue;
+  }
+  $bot->replyText($event->getReplyToken(), $event->getText());
+}
+ ?>
